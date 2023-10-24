@@ -15,7 +15,7 @@
     // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
 
     // the link to your model provided by Teachable Machine export panel
-    const URL = "https://teachablemachine.withgoogle.com/models/ziYPt5cTB/";
+    const URL = "https://teachablemachine.withgoogle.com/models/Pmqywz7Lo/";
 
     let model, webcam, labelContainer, maxPredictions;
 
@@ -63,6 +63,99 @@
         }
     }
 </script>
+	<h1>웹캠 정보 음성 출력</h1>
+    <button onclick="startSpeechRecognition()">음성 출력 시작</button>
+    <button onclick="stopSpeechRecognition()">음성 출력 중지</button>
+    <br>
+    <video id="videoElement" width="640" height="480" autoplay></video>
+    <div id="label-container"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest"></script>
+    <script>
+        const URL = "https://teachablemachine.withgoogle.com/models/Pmqywz7Lo/";
+        let model, webcam, labelContainer, maxPredictions;
+        let speechRecognition;
+
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true;
+            webcam = new tmImage.Webcam(200, 200, flip);
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        async function loop() {
+            webcam.update();
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            let highestPredictionIndex = 0;
+            let highestPredictionValue = 0;
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction =
+                    prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+
+                if (prediction[i].probability > highestPredictionValue) {
+                    highestPredictionIndex = i;
+                    highestPredictionValue = prediction[i].probability;
+                }
+            }
+
+            if (speechRecognition) {
+                stopSpeechRecognition();
+            }
+            speakText(prediction[highestPredictionIndex].className);
+        }
+
+        function startSpeechRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                console.error('음성 인식이 지원되지 않는 브라우저입니다.');
+                return;
+            }
+
+            speechRecognition = new webkitSpeechRecognition();
+            speechRecognition.continuous = true;
+            speechRecognition.interimResults = false;
+            speechRecognition.lang = 'ko-KR';
+
+            speechRecognition.onresult = function (event) {
+                let result = event.results[event.results.length - 1][0].transcript;
+                speakText(result);
+            };
+
+            speechRecognition.start();
+        }
+
+        function stopSpeechRecognition() {
+            if (speechRecognition) {
+                speechRecognition.stop();
+                speechRecognition = null;
+            }
+        }
+
+        function speakText(text) {
+            let utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+
+        init();
+    </script>
 
 	</body>
 </html>
