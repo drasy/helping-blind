@@ -4,158 +4,95 @@
 		<link rel="stylesheet" href="style.css">
 	</head>
 	<body>
-<div>Teachable Machine Image Model</div>
-<button type="button" onclick="init()">Start</button>
-<div id="webcam-container"></div>
-<div id="label-container"></div>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-<script type="text/javascript">
-    // More API functions here:
-    // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
+		<div>Teachable Machine Image Model</div>
+		<div id="webcam-container"></div>
+		<div id="label-container"></div>
+		<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+		<script type="text/javascript">
+			// More API functions here:
+			// https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
 
-    // the link to your model provided by Teachable Machine export panel
-    const URL = "https://teachablemachine.withgoogle.com/models/Pmqywz7Lo/";
+			// the link to your model provided by Teachable Machine export panel
+			const URL = "https://teachablemachine.withgoogle.com/models/Pmqywz7Lo/";
 
-    let model, webcam, labelContainer, maxPredictions;
+			let model, webcam, labelContainer, maxPredictions;
+			let predictionSum = new Array();
+			let predictionCount = 0;
 
-    // Load the image model and setup the webcam
-    async function init() {
-        const modelURL = URL + "model.json";
-        const metadataURL = URL + "metadata.json";
+			// Load the image model and setup the webcam
+			async function init() {
+				const modelURL = URL + "model.json";
+				const metadataURL = URL + "metadata.json";
 
-        // load the model and metadata
-        // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
-        // or files from your local hard drive
-        // Note: the pose library adds "tmImage" object to your window (window.tmImage)
-        model = await tmImage.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
+				// load the model and metadata
+				// Refer to tmImage.loadFromFiles() in the API to support files from a file picker
+				// or files from your local hard drive
+				// Note: the pose library adds "tmImage" object to your window (window.tmImage)
+				model = await tmImage.load(modelURL, metadataURL);
+				maxPredictions = model.getTotalClasses();
 
-        // Convenience function to setup a webcam
-        const flip = true; // whether to flip the webcam
-        webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
-        await webcam.setup(); // request access to the webcam
-        await webcam.play();
-        window.requestAnimationFrame(loop);
+				// Convenience function to setup a webcam
+				const flip = true; // whether to flip the webcam
+				webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
+				await webcam.setup(); // request access to the webcam
+				await webcam.play();
+				window.requestAnimationFrame(loop);
 
-        // append elements to the DOM
-        document.getElementById("webcam-container").appendChild(webcam.canvas);
-        labelContainer = document.getElementById("label-container");
-        for (let i = 0; i < maxPredictions; i++) { // and class labels
-            labelContainer.appendChild(document.createElement("div"));
-        }
-    }
+				// append elements to the DOM
+				document.getElementById("webcam-container").appendChild(webcam.canvas);
+				labelContainer = document.getElementById("label-container");
+				for (let i = 0; i < maxPredictions; i++) { // and class labels
+					labelContainer.appendChild(document.createElement("div"));
+				}
 
-    async function loop() {
-        webcam.update(); // update the webcam frame
-        await predict();
-        window.requestAnimationFrame(loop);
-    }
+				// Initialize predictionSum
+				for (let i = 0; i < maxPredictions; i++) {
+					predictionSum[i] = 0;
+				}
+			}
 
-    // run the webcam image through the image model
-    async function predict() {
-        // predict can take in an image, video or canvas html element
-        const prediction = await model.predict(webcam.canvas);
-        for (let i = 0; i < maxPredictions; i++) {
-            const classPrediction =
-                prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-            labelContainer.childNodes[i].innerHTML = classPrediction;
-        }
-    }
-</script>
-	<h1>웹캠 정보 음성 출력</h1>
-    <button onclick="startSpeechRecognition()">음성 출력 시작</button>
-    <button onclick="stopSpeechRecognition()">음성 출력 중지</button>
-    <br>
-    <video id="videoElement" width="640" height="480" autoplay></video>
-    <div id="label-container"></div>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest"></script>
-    <script>
-        const URL = "https://teachablemachine.withgoogle.com/models/Pmqywz7Lo/";
-        let model, webcam, labelContainer, maxPredictions;
-        let speechRecognition;
+			async function loop() {
+				webcam.update(); // update the webcam frame
+				const prediction = await predict();
+				window.requestAnimationFrame(loop);
 
-        async function init() {
-            const modelURL = URL + "model.json";
-            const metadataURL = URL + "metadata.json";
+				// Speak the class with the highest average prediction after 5 seconds
+				predictionCount++;
+				if(predictionCount >= 5 * 60) { // Assuming the loop function is called 60 times per second
+					predictionCount = 0;
+					let maxPredictionIndex = predictionSum.indexOf(Math.max(...predictionSum));
+					if(predictionSum[maxPredictionIndex] / (5 * 60) > 0.5) {
+						speak(prediction[maxPredictionIndex].className);
+					}
+					for (let i = 0; i < maxPredictions; i++) {
+						predictionSum[i] = 0;
+					}
+				}
+			}
 
-            model = await tmImage.load(modelURL, metadataURL);
-            maxPredictions = model.getTotalClasses();
+			// run the webcam image through the image model
+			async function predict() {
+				// predict can take in an image, video or canvas html element
+				const prediction = await model.predict(webcam.canvas);
+				for (let i = 0; i < maxPredictions; i++) {
+					const classPrediction =
+						prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+					labelContainer.childNodes[i].innerHTML = classPrediction;
 
-            const flip = true;
-            webcam = new tmImage.Webcam(200, 200, flip);
-            await webcam.setup();
-            await webcam.play();
-            window.requestAnimationFrame(loop);
+					// Add the prediction to the sum
+					predictionSum[i] += parseFloat(prediction[i].probability.toFixed(2));
+				}
+				return prediction;
+			}
 
-            labelContainer = document.getElementById("label-container");
-            for (let i = 0; i < maxPredictions; i++) {
-                labelContainer.appendChild(document.createElement("div"));
-            }
-        }
+			function speak(className) {
+				const utterance = new SpeechSynthesisUtterance(className);
+				window.speechSynthesis.speak(utterance);
+			}
 
-        async function loop() {
-            webcam.update();
-            await predict();
-            window.requestAnimationFrame(loop);
-        }
-
-        async function predict() {
-            const prediction = await model.predict(webcam.canvas);
-            let highestPredictionIndex = 0;
-            let highestPredictionValue = 0;
-
-            for (let i = 0; i < maxPredictions; i++) {
-                const classPrediction =
-                    prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-                labelContainer.childNodes[i].innerHTML = classPrediction;
-
-                if (prediction[i].probability > highestPredictionValue) {
-                    highestPredictionIndex = i;
-                    highestPredictionValue = prediction[i].probability;
-                }
-            }
-
-            if (speechRecognition) {
-                stopSpeechRecognition();
-            }
-            speakText(prediction[highestPredictionIndex].className);
-        }
-
-        function startSpeechRecognition() {
-            if (!('webkitSpeechRecognition' in window)) {
-                console.error('음성 인식이 지원되지 않는 브라우저입니다.');
-                return;
-            }
-
-            speechRecognition = new webkitSpeechRecognition();
-            speechRecognition.continuous = true;
-            speechRecognition.interimResults = false;
-            speechRecognition.lang = 'ko-KR';
-
-            speechRecognition.onresult = function (event) {
-                let result = event.results[event.results.length - 1][0].transcript;
-                speakText(result);
-            };
-
-            speechRecognition.start();
-        }
-
-        function stopSpeechRecognition() {
-            if (speechRecognition) {
-                speechRecognition.stop();
-                speechRecognition = null;
-            }
-        }
-
-        function speakText(text) {
-            let utterance = new SpeechSynthesisUtterance(text);
-            speechSynthesis.speak(utterance);
-        }
-
-        init();
-    </script>
-
+			// 페이지 로드 완료 후 init() 함수 호출
+			document.addEventListener("DOMContentLoaded", init);
+		</script>
 	</body>
 </html>
