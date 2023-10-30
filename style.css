@@ -2,3 +2,18 @@
 	font-weight: bold;
 	font-size: 30px;
 }
+.section{
+	margin-top:100px;
+}
+.title{
+	font-family: NanumSquareR;
+	line-height:1.4;
+	text-align: center;
+	color: #35465d;
+}
+.subtitle{
+	font-family: NanumSquareR;
+	line-height:1;
+	text-align: center;
+	color: #35465d;
+}
